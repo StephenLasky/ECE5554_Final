@@ -51,6 +51,7 @@ distBetweenClusters = zeros(k,k);
 % graph data here
 varianceGraphInfo = zeros(numFrames,k);
 centroidGraphInfo = zeros(numFrames,k);
+closestCentroidGraphInfo = zeros(numFrames,k);
 
 for i=1:numFrames
     % find difference between bg and fg, change to grayscale
@@ -81,9 +82,19 @@ for i=1:numFrames
             if size(unique(min_idx),2) == k
                 centroidsCopy = centroids;
                 for c = 1:k
-                    centroids(c,:) = centroidsCopy(min_idx(c),:);
+                    c2 = min_idx(c);
+                    centroids(c,:) = centroidsCopy(c2,:);
                 end
             end
+        end
+    end
+    
+    % reassign the cluster points as determined by min_idx
+    if oldClusters ~= -1 & size(unique(min_idx),2) == k
+        for pt = 1:numPts
+            c = clusters(pt);
+            c = find(min_idx==c,k);
+            clusters(pt) = c;
         end
     end
     
@@ -91,21 +102,23 @@ for i=1:numFrames
     for c = 1:k
         L = clusters == c;
         d = pdist2(binYX(L,:),centroids(c,:));
-        
-        % cluster may have changed
-        c2 = c;
-        if oldClusters ~= -1 & size(unique(min_idx),2) == k
-            c2 = min_idx(c);
-        end
-        variances(c2) = var(d);
+        variances(c) = var(d);
     end
     varianceGraphInfo(i,:) = variances';    % add to graph info for later
+    
+    
     
     % compute the distances between cluster centers
     % TODO
     
     % collect some other graph data
     centroidGraphInfo(i,:) = (centroids(:,1).^2 + centroids(:,2).^2).^(0.5);
+    
+    % compute the closet centroid distance
+    d = pdist2(centroids,centroids);
+    d(d==0) = realmax('double');
+    d = min(d);
+    closestCentroidGraphInfo(i,:) = d';
     
    
     % END 'CLUSTERING'
@@ -120,11 +133,6 @@ for i=1:numFrames
     % color the clusters
     for pt = 1:numPts
         c = clusters(pt);
-        
-%         % cluster may have changed
-        if oldClusters ~= -1 & size(unique(min_idx),2) == k
-            c = min_idx(c);
-        end
         
         y = binY(pt);
         x = binX(pt);
@@ -144,6 +152,12 @@ for i=1:numFrames
     
     % add frame number to video
     newIms{i} = insertText(newIms{i},[25 25],int2str(i));
+    
+%     % DEBUGGING
+%     if i >= 20
+%         figure(); imshow(newIms{i});
+%         1+2;
+%     end
     
     % add variance for cluster 1 to video
     
@@ -175,8 +189,14 @@ saveVideo(newIms);
 dSize = 12;
 startF = 20;
 endF = numFrames;
+
+
+% plot the variance between clusters
 figure
 for c = 1:k
+    title('Variance of Distance Within Clusters');
+    xlabel('Frame #')
+    ylabel('Variance')
     plot(startF:endF,varianceGraphInfo(startF:endF,c), dSize, cColor(c,:));
     if c ~= k
         hold on
@@ -184,29 +204,19 @@ for c = 1:k
         hold off
     end
 end
-% 
-% xs = 275;
-% xe = 320;
-% ys = 66;
-% ye = 134;
-% 
-% % turn everything to double precision
-% for i=1:numFrames
-%     ims{i} = im2double(ims{i});
-% end
-% 
-% 
-% im = ims{i};
-% bgim = ims{1};
-% diff = abs(bgim-im);
-% diff2 = (diff(:,:,1).^2+diff(:,:,2).^2+diff(:,:,3).^2).^(0.5);
-% sbs = horzcat(bgim,im,diff);
-% 
-% 
-% 
-% figure(); imshow(sbs);
 
-
-
+% plot the distance between centroids
+figure
+for c = 1:k
+    title('Closest Cluster Distance');
+    xlabel('Frame #')
+    ylabel('Distance')
+    plot(startF:endF,closestCentroidGraphInfo(startF:endF,c), dSize, cColor(c,:));
+    if c ~= k
+        hold on
+    else
+        hold off
+    end
+end
 
 

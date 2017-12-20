@@ -51,6 +51,7 @@ distBetweenClusters = zeros(k,k);
 % graph data here
 varianceGraphInfo = zeros(numFrames,k);
 centroidGraphInfo = zeros(numFrames,k);
+closestCentroidGraphInfo = zeros(numFrames,k);
 
 for i=1:numFrames
     % find difference between bg and fg, change to grayscale
@@ -81,9 +82,19 @@ for i=1:numFrames
             if size(unique(min_idx),2) == k
                 centroidsCopy = centroids;
                 for c = 1:k
-                    centroids(c,:) = centroidsCopy(min_idx(c),:);
+                    c2 = min_idx(c);
+                    centroids(c,:) = centroidsCopy(c2,:);
                 end
             end
+        end
+    end
+    
+    % reassign the cluster points as determined by min_idx
+    if oldClusters ~= -1 & size(unique(min_idx),2) == k
+        for pt = 1:numPts
+            c = clusters(pt);
+            c = find(min_idx==c,k);
+            clusters(pt) = c;
         end
     end
     
@@ -95,11 +106,19 @@ for i=1:numFrames
     end
     varianceGraphInfo(i,:) = variances';    % add to graph info for later
     
+    
+    
     % compute the distances between cluster centers
     % TODO
     
     % collect some other graph data
     centroidGraphInfo(i,:) = (centroids(:,1).^2 + centroids(:,2).^2).^(0.5);
+    
+    % compute the closet centroid distance
+    d = pdist2(centroids,centroids);
+    d(d==0) = realmax('double');
+    d = min(d);
+    closestCentroidGraphInfo(i,:) = d';
     
    
     % END 'CLUSTERING'
@@ -114,11 +133,6 @@ for i=1:numFrames
     % color the clusters
     for pt = 1:numPts
         c = clusters(pt);
-        
-%         % cluster may have changed
-        if oldClusters ~= -1 & size(unique(min_idx),2) == k
-            c = min_idx(c);
-        end
         
         y = binY(pt);
         x = binX(pt);
@@ -135,6 +149,17 @@ for i=1:numFrames
         newIms{i}(yl:yu,xl:xu,1) = 1;
         newIms{i}(yl:yu,xl:xu,2:3) = 0;
     end
+    
+    % add frame number to video
+    newIms{i} = insertText(newIms{i},[25 25],int2str(i));
+    
+%     % DEBUGGING
+%     if i >= 20
+%         figure(); imshow(newIms{i});
+%         1+2;
+%     end
+    
+    % add variance for cluster 1 to video
     
 %     figure(); imshow(newIms{i});
 %     centroids
@@ -161,33 +186,22 @@ saveVideo(newIms);
 
 % ANALYSIS PART BELOW ...
 % GRAPH EVERYTHING??
-dSize = 6;
-scatter(20:numFrames, varianceGraphInfo(20:numFrames,1), dSize, cColors(1,:));
-hold on
-figure(); scatter(20:numFrames, varianceGraphInfo(20:numFrames,2), dSize, [0 0 1]);
-% 
-% xs = 275;
-% xe = 320;
-% ys = 66;
-% ye = 134;
-% 
-% % turn everything to double precision
-% for i=1:numFrames
-%     ims{i} = im2double(ims{i});
-% end
-% 
-% 
-% im = ims{i};
-% bgim = ims{1};
-% diff = abs(bgim-im);
-% diff2 = (diff(:,:,1).^2+diff(:,:,2).^2+diff(:,:,3).^2).^(0.5);
-% sbs = horzcat(bgim,im,diff);
-% 
-% 
-% 
-% figure(); imshow(sbs);
+dSize = 12;
+startF = 20;
+endF = numFrames;
+figure
 
+% plot the variance between clusters
+for c = 1:k
+    plot(startF:endF,varianceGraphInfo(startF:endF,c), dSize, cColor(c,:));
+%     scatter(startF:endF,varianceGraphInfo(startF:endF,c), dSize, cColor(c,:));
+    if c ~= k
+        hold on
+    else
+        hold off
+    end
+end
 
-
+% plot the distance bet
 
 

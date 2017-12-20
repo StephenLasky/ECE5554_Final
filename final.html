@@ -1,6 +1,6 @@
 <html>
 <h1>Stephen Lasky Final Project</h1>
-<h3 style="color:blue;">Note to grader: there are several things that I am still adding and would strongly prefer that this be graded after 12/19 11:59PM.</h3>
+<a href=""></a>
 <h2>1. Introduction</h2>
 <h3>1.1 Original Project Goals</h3>
 <p>The original project objectives were as follows:</p>
@@ -60,10 +60,15 @@
 <img src="web_images/im11.png" style="width:95%; margin:0px 10px">
 <p>Figure 5: Background subtraction image, with colored clusters (k=3) and red squares indicating cluster centers (left). Notice that the person towards the bottom of the image has too many clusters assigned to them.</p>
 <img src="web_images/im10.png" style="width:95%; margin:0px 10px">
+<p>What about when K is too small? Figure 6 illustrates the result: a large variance is expected.</p>
 <p>Figure 6: Background subtraction image, with colored cluster (k=1) and a red square indicating the cluster center (right). Notice that both individuals share the same cluster, and the variance of the cluster will be huge.</p>
 
-<h3>2.4 Person Recognition</h3>
-<p>The idea here is to take each detected subject, crop the image which surrounds them, and run the cropped image through a classifying CNN. If the subject is indeed classified as a human, then continue tracking them, otherwise ignore the subject from a tracking perspective.</p>
+<h3>2.4 Dynamically Selecting K</h3>
+<p>We have now demonstrated that with the correct K value the 
+
+
+<!-- <h3>2.4 Person Recognition</h3>
+<p>The idea here is to take each detected subject, crop the image which surrounds them, and run the cropped image through a classifying CNN. If the subject is indeed classified as a human, then continue tracking them, otherwise ignore the subject from a tracking perspective.</p> -->
 
 
 
