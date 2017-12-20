@@ -91,7 +91,13 @@ for i=1:numFrames
     for c = 1:k
         L = clusters == c;
         d = pdist2(binYX(L,:),centroids(c,:));
-        variances(c) = var(d);
+        
+        % cluster may have changed
+        c2 = c;
+        if oldClusters ~= -1 & size(unique(min_idx),2) == k
+            c2 = min_idx(c);
+        end
+        variances(c2) = var(d);
     end
     varianceGraphInfo(i,:) = variances';    % add to graph info for later
     

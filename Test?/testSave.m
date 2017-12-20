@@ -1,5 +1,5 @@
-startFrame = 2130;
-endFrame = 2210;
+startFrame = 90;
+endFrame = 250;
 
 numFrames = endFrame - startFrame + 1;
 
@@ -8,14 +8,14 @@ imWidth = 320;
 
 binImgThreshold = 0.35;
 
-k = 150;
+k = 2;
 km_iters = 5;
 
 % places all the images into a nice array
 ims = cell(numFrames, 1);
 i=1;
 for f = startFrame:endFrame
-    imName = strcat('imgs3/',int2str(f),'.png');
+    imName = strcat('imgs4/',int2str(f),'.png');
     ims{i} = im2double(imread(imName));
     i = i + 1;
 end
@@ -23,8 +23,35 @@ end
 % computes the difference between the background and foreground
 newIms = cell(numFrames,1);
 binIms = cell(numFrames,1);
-bgim = ims{1};
-clusters = zeros(k,2);  % IMPORTANT: stored as Y = 1, X = 2
+bgim = ims{50};
+bgim(8:76,155:176,:) = ims{1}(8:76,155:176,:);
+
+
+
+% clusters = zeros(k,2);  % IMPORTANT: stored as Y = 1, X = 2
+if k > 3
+    cColor = zeros(k,3,'double');
+    cColor(:,1) = randperm(1000, k)';
+    cColor(:,2) = randperm(1000, k)';
+    cColor(:,3) = randperm(1000, k)';
+    cColor(:,:) = cColor(:,:) / 1000;
+else
+    cColor = zeros(5,3,'double');
+    cColor(1,:) = [0 1 0];  % green
+    cColor(2,:) = [0 0 1];  % blue
+    cColor(3,:) = [1 1 0];  % yellow
+end
+
+
+clusters = -1;
+centroids = -1;
+variances = zeros(k,1);
+distBetweenClusters = zeros(k,k);
+
+% graph data here
+varianceGraphInfo = zeros(numFrames,k);
+centroidGraphInfo = zeros(numFrames,k);
+
 for i=1:numFrames
     % find difference between bg and fg, change to grayscale
     diff = abs(ims{i} - bgim);
@@ -32,47 +59,55 @@ for i=1:numFrames
     
     % convert to binary image
     bin = diff2 > binImgThreshold;
-%     bin = im2double(bin);
     bin = logical(bin);
+    bin = imerode(bin,1);
     binIms{i} = bin;
     
     % BEGIN 'CLUSTERING'
     [binY, binX] = find(bin);
-    binYX = 
+    binYX = horzcat(binY, binX);
     numPts = size(binX); numPts = numPts(1);
     
-    if numPts > 1
-        % generate new cluster centers
-        clusters(:,1) = randperm(imHeight,k);
-        clusters(:,2) = randperm(imWidth,k);
+    if numPts > k
+        oldClusters = clusters;
+        oldCentroids = centroids;
+        [clusters, centroids] = kmeans(binYX, k);
         
-        for kmi = 1:km_iters
-            % compute distance from each cluster center to each bin point
-            d = pdist2(clusters, horzcat(binY,binX));
-
-            % assign each point to a cluster
-            [minVal, minIdx] = min(d);
-            [uniqueC, cCount] = unique(minIdx); % determine unique clusters and their count
-            clusters(uniqueC,:) = 0;     % prepare clusters that are about to change
-
-            % begin averaging clusters
-            for pt = 1:numPts                   % for each point assigned to a cluster
-                c = minIdx(pt);                 % get its cluster assignment
-                clusters(c,1) = clusters(c,1) + binY(pt);   % add its Y to new cluster average
-                clusters(c,2) = clusters(c,2) + binX(pt);   % add its X to new cluster average
-            end
-
-            % update the average of each cluster
-            for j = 1:size(uniqueC,2)
-                c = uniqueC(j);
-                count = cCount(j);
-                clusters(c,1) = clusters(c,1) / count;
-                clusters(c,2) = clusters(c,2) / count;
+        % now re-assign clusters
+        if oldClusters ~= -1
+            centroid_d = pdist2(centroids,oldCentroids);
+            [centroid_d2, min_idx] = min(centroid_d);
+            
+            if size(unique(min_idx),2) == k
+                centroidsCopy = centroids;
+                for c = 1:k
+                    centroids(c,:) = centroidsCopy(min_idx(c),:);
+                end
             end
         end
-        
-        
     end
+    
+    % compute the variance of each clusters
+    for c = 1:k
+        L = clusters == c;
+        d = pdist2(binYX(L,:),centroids(c,:));
+        
+        % cluster may have changed
+        c2 = c;
+        if oldClusters ~= -1 & size(unique(min_idx),2) == k
+            c2 = min_idx(c);
+        end
+        variances(c2) = var(d);
+    end
+    varianceGraphInfo(i,:) = variances';    % add to graph info for later
+    
+    % compute the distances between cluster centers
+    % TODO
+    
+    % collect some other graph data
+    centroidGraphInfo(i,:) = (centroids(:,1).^2 + centroids(:,2).^2).^(0.5);
+    
+   
     % END 'CLUSTERING'
     
     % convert binary image back to RGB
@@ -82,38 +117,40 @@ for i=1:numFrames
 	% concatenate into video sequence
     newIms{i} = horzcat( diff , ims{i} );
     
-    % apply red point to x,y
-    if numPts > 1
-        for c = 1:k
-            if size(find(uniqueC == c),2) >= 1
-                x = round(clusters(c,2));
-                y = round(clusters(c,1));
-                xl = max(x-2,1); yl = max(y-2,1);
-                xu = min(x+2,imWidth); yu = min(y+2,imHeight);
-                newIms{i}(yl:yu,xl:xu,1) = 1;
-                newIms{i}(yl:yu,xl:xu,2:3) = 0;
-                xl = x-2+imWidth;
-                xu = min(2*imWidth, x+2+imWidth);
-                newIms{i}(yl:yu,xl:xu,1) = 1;
-                newIms{i}(yl:yu,xl:xu,2:3) = 0;
-            else
-                x = round(clusters(c,2));
-                y = round(clusters(c,1));
-                xl = max(x-2,1); yl = max(y-2,1);
-                xu = min(x+2,imWidth); yu = min(y+2,imHeight);
-                newIms{i}(yl:yu,xl:xu,2) = 1;
-                newIms{i}(yl:yu,xl:xu,1) = 0;
-                newIms{i}(yl:yu,xl:xu,3) = 0;
-                xl = x-2+imWidth;
-                xu = min(2*imWidth, x+2+imWidth);
-                newIms{i}(yl:yu,xl:xu,2) = 1;
-                newIms{i}(yl:yu,xl:xu,1) = 0;
-                newIms{i}(yl:yu,xl:xu,3) = 0;
-            end
+    % color the clusters
+    for pt = 1:numPts
+        c = clusters(pt);
+        
+%         % cluster may have changed
+        if oldClusters ~= -1 & size(unique(min_idx),2) == k
+            c = min_idx(c);
         end
+        
+        y = binY(pt);
+        x = binX(pt);
+        newIms{i}(y,x,:) = cColor(c,:);
     end
     
+    % place red squares at cluster centers
+    centroids = round(centroids);
+    for c = 1:k
+        y = centroids(c,1);
+        x = centroids(c,2);
+        yl = max(1,y-2); xl = max(1,x-2);
+        yu = min(imHeight,y+2); xu = min(imWidth,x+2);
+        newIms{i}(yl:yu,xl:xu,1) = 1;
+        newIms{i}(yl:yu,xl:xu,2:3) = 0;
+    end
     
+    % add frame number to video
+    newIms{i} = insertText(newIms{i},[25 25],int2str(i));
+    
+    % add variance for cluster 1 to video
+    
+%     figure(); imshow(newIms{i});
+%     centroids
+%     oldCentroids
+%     1+2;
    % update the background image
 %    a = 1.5;
 %    L = logical(ones(imHeight, imWidth));
@@ -134,28 +171,40 @@ end
 saveVideo(newIms);
 
 % ANALYSIS PART BELOW ...
-
-
-xs = 275;
-xe = 320;
-ys = 66;
-ye = 134;
-
-% turn everything to double precision
-for i=1:numFrames
-    ims{i} = im2double(ims{i});
+% GRAPH EVERYTHING??
+dSize = 12;
+startF = 20;
+endF = numFrames;
+figure
+for c = 1:k
+    plot(startF:endF,varianceGraphInfo(startF:endF,c), dSize, cColor(c,:));
+    if c ~= k
+        hold on
+    else
+        hold off
+    end
 end
-
-
-im = ims{i};
-bgim = ims{1};
-diff = abs(bgim-im);
-diff2 = (diff(:,:,1).^2+diff(:,:,2).^2+diff(:,:,3).^2).^(0.5);
-sbs = horzcat(bgim,im,diff);
-
-
-
-figure(); imshow(sbs);
+% 
+% xs = 275;
+% xe = 320;
+% ys = 66;
+% ye = 134;
+% 
+% % turn everything to double precision
+% for i=1:numFrames
+%     ims{i} = im2double(ims{i});
+% end
+% 
+% 
+% im = ims{i};
+% bgim = ims{1};
+% diff = abs(bgim-im);
+% diff2 = (diff(:,:,1).^2+diff(:,:,2).^2+diff(:,:,3).^2).^(0.5);
+% sbs = horzcat(bgim,im,diff);
+% 
+% 
+% 
+% figure(); imshow(sbs);
 
 
 
