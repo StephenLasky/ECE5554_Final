@@ -1,0 +1,71 @@
+<html>
+<h1>Stephen Lasky Final Project</h1>
+<h3 style="color:blue;">Note to grader: there are several things that I am still adding and would strongly prefer that this be graded after 12/19 11:59PM.</h3>
+<h2>1. Introduction</h2>
+<h3>1.1 Original Project Goals</h3>
+<p>The original project objectives were as follows:</p>
+	<ol>
+		<li>Track multiple people across a video sequence from a single fixed camera. It is okay for people to become obstructed but they may never leave the re-enter the frame.</li>
+		<li>Extend objective #1 to a multi-camera environment and report accurracy improvements with using a multi-camera system. The camera space of the multi-camera system be connected, but not necessarily fully connected.</li>
+	</ol>
+<p>Approach: Train a CNN.</p>
+<h3>1.2 New project Objectives</h3>
+<h4>1.2.1 Problems With Original Goals</h4>
+<p>The first point that I need to make is that I am a <strong>1 man team</strong>. That is, I have 1/4th the manpower of the recommended team size. However, I recognized this even when I submitted the project proposal and still decided to move forward. Essentially, the approach that the paper uses to solve this paper involves the use and training of a CNN. As someone who has only limited machine learning experience, I originally saw this problem entirely as the training of a CNN. To me, simply finding data and training a CNN should be possible for a 1 man team. As I read the paper however, I realized that in addition to training the CNN, they also made layer-level modifications which, with my novice machine leanring skillset, was something that I had no idea how to do. It was then that I realized that the custimization of a CNN is probably a project within itself, and this fact alone made the entire scope and objectives not possible by a 1 man team. </p>
+
+<p>With this in mind, the difficulty and scope of person tracking in a multi-camera environment became significantly more difficult. Without the use of a CNN to abstract away much of the complexities associated with tracking, even achieving the first objective became very complicated. As such, I first chose to focus exclusively on the first objective, and introduce a multiltiude of restrictinos on the input data.</p>
+<h4>1.2.2 Restrictions and Redfinition of Objectives</h4>
+<p>To accomplish at least part of my original objectives as a 1 man team within a reasonable time frame, I have placed various restrictions on the input data to deal with some of the most challenging components of person tracking. Specifically, all video sequences are expected to have the following restrictions:</p>
+<ol>
+	<li>Two people will never overlap at any point during the video sequence. This restriction is fairly liberal in that I am also expecting people to not come very close in general.</li>
+	<li>The background remains almost completely static. This includes no lighting changes and no camera movement.</li>
+</ol>
+<p>Unfortunately, even with these restrictions, achieving both objectives is sitll very much out of reach. Thus, for the time being, I am focusing on the first objective. Of course, with the above restrictions, tracking a single person is actually quite trivial and faily uninteresting, and so I will still maintain the goal of tracking multiple people at the same time. However, tracking several unobstructed people with a mostly static background remains somewhat uninteresting. With this in mind, I will relax the background restriction somewhat to allow non-human moving objects to enter the frame: cars, dogs, etc. These will still follow the no-obstruction rule.</p>
+<p>With this in mind, the new project objective is as follows:</p>
+<i style="font-size:16">Track multiple unobstructed people across a video sequence from a single fixed camera, while correctly discerning people from other moving objects.</i>
+
+<h2>2. Approach</h2>
+<h3>2.1 Detection</h3>
+<p>The first design problem facing the objective is to discern the background from objects of tracking interest. For this I used background subtraction. In many cases, background subtraction is a very powerful tool that allows foreground objects to be easily detected. Unfortunately, background subtraction can only produce a clear result when the object of interest is significantly different in color from the background. Otherwise, it can produce a shattered-looking result.</p>
+<img src="web_images/im1.png" style="width:90%; margin:0px 10px">
+<p>Figure 1: background subtraction with clear result. Subject with bold colors walks infront of background with light colors.</p>
+<img src="web_images/im2.png" style="width:90%; margin:0px 10px">
+<p>Figure 2: background subtraction with "shattered" result. Subject with bold colors walks infront of car with similarly bold colors. Additionally, reflection of subject changes background.</p>
+<p>Fortunately, even with a shattered result, we still enough information to know where the subject is. With this in mind, background subtraction works very well for our purposes.</p>
+
+<h3>2.2 Tracking</h3>
+<p>In this case, I am using a tracking-by-detection method which differs from other trackers that explicity focus on keypoints. Instead, every frame is re-analyzed and objects are re-detected. Their positions are then updated to reflect the new frame. Thus, the tracking position is merely the average of the positions of the background subtraction pixels. I use simple statistcs to reduce the majority of the outliers as seen in figures 1 and 2.</p>
+<p>To further reduce false positives and increase accuracy, the background is dynamically updated such that it is the average of the previous 10 or so frames. This will help control for things like color differences, and also deal with unwanted background movement such as leaves moving in the wind. However, naively averaging the background like this will have some serious consequences. In particular, imagine a person decides to stand still for 10 frames, which is only 1/3rd of a second and is not only possible but very probable. To make it so that subjects are not averaged into the background, the system selectivey only updates the background regions which contain not detected subjects. The regions are sized fairly liberally to avoid the above consequence. Unfortunately, due to this liberal sizing, a large number of subjects might cause the entirety of the background to not be updated. This is a consequence that I am willing to accept, and I have managed to obtain good results with this in mind.</p>
+
+<table style="width:100%;height:200px;display:block;background-color:#ccc;padding:5px">
+	<tr>
+		<td><img style="vertical-align: bottom;" width="100%" src="web_images/im3.png"></td>
+		<td><img style="vertical-align: bottom;" width="100%" src="web_images/im4.png"></td>
+		<td><img style="vertical-align: bottom;" width="100%" src="web_images/im5.png"></td>
+	</tr>
+	<tr>
+		<td><img style="vertical-align: bottom;" width="100%" src="web_images/im6.png"></td>
+		<td><img style="vertical-align: bottom;" width="100%" src="web_images/im7.png"></td>
+		<td><img style="vertical-align: bottom;" width="100%" src="web_images/im8.png"></td>
+	</tr>
+</table>
+<p>Figure 3: With temporal ordering: top lefp to top right, and then bottom left to bottom right. The red square indicates the position the tracker detected the person at.</p>
+
+<h3>2.3 Multi-Tracking</h3>
+<p>The multi-tracking aspect of this system is where difficulty begins to skyrocket. At this point, I have discussed the ability to detect a subject using background subtraction and the ability track the subject using simple statistics. These methods can be applied in a multi-tracking setting, however we now must determine which background subracted pixels belong to which subject. The first reaction I had was to use k-means clustering to cluster the pixels based on position. Immediately, the problem here, as is always with k-means, is that we need to know the value of k. As a proof of concept, a flawless result was produced in figure 4 when the correct k is chosen.</p>
+<img src="web_images/im9.png" style="width:95%; margin:0px 10px">
+<p>Figure 4: A store aisle with two shoppers browsing the shelves (right) with the background subtraction image with colored clusters (left). Background subtraction performs a remarkable job detecting the presence of two distinct subjects, despite the result being shattered. Additionally, k-means clustering performs perfectly at classifying the two distinct subjects (subject 1 is yellow, subject 2 is orange), however this required the manual entry of k=2. For an even further break down, let us consider </p>
+<p>The problem now becomes: How do you choose the right k? Thus, we must implement a system to automatically choose k. To solve this, I asked myself the question: What statistical properties would an incorrect k yield? To break the question down even more simply, we need only ask: What happens when k is too large? What happens when K is too small?</p>
+<p>When K is too large: although this may be trivial, the effects of a k that is too large is illustrated in figure 5. The problem is simple: some people will have too many clusters assigned to them. Thus, I note that, from a statistical perspective, the distance between some clusters may be too small and, because of the smaller number of pixels they encapsulate, their variance may be lower as well.</p>
+<img src="web_images/im11.png" style="width:95%; margin:0px 10px">
+<p>Figure 5: Background subtraction image, with colored clusters (k=3) and red squares indicating cluster centers (left). Notice that the person towards the bottom of the image has too many clusters assigned to them.</p>
+<img src="web_images/im10.png" style="width:95%; margin:0px 10px">
+<p>Figure 6: Background subtraction image, with colored cluster (k=1) and a red square indicating the cluster center (right). Notice that both individuals share the same cluster, and the variance of the cluster will be huge.</p>
+
+<h3>2.4 Person Recognition</h3>
+<p>The idea here is to take each detected subject, crop the image which surrounds them, and run the cropped image through a classifying CNN. If the subject is indeed classified as a human, then continue tracking them, otherwise ignore the subject from a tracking perspective.</p>
+
+
+
+
+</html>
